@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loop_count:
-        description: 'Siklus tersisa'
+        description: 'Siklus tersisa (default 1800)'
         required: true
         default: '1800'
 
@@ -12,18 +12,70 @@ permissions:
   actions: write
 
 jobs:
-  run-hello:
+  # =============================================
+  # 🕒 Cek waktu WIB (07.00 – 22.00 WIB = 00.00 – 15.00 UTC)
+  # =============================================
+  check-schedule:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.timecheck.outputs.should_run }}
     steps:
-      - run: echo "hello world" & sleep 120
+      - id: timecheck
+        run: |
+          HOUR_UTC=$(date -u +%H)
+          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
+            echo "✅ Dalam jam operasional (WIB 07.00–22.00)"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏰ Di luar jam operasional. Workflow dihentikan."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
 
-  trigger-lscpu:
-    needs: run-hello
+  # =============================================
+  # 👋 Hello world (durasi 120 detik, tetap hijau)
+  # =============================================
+  run-hello:
+    needs: check-schedule
+    if: needs.check-schedule.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    if: github.event.inputs.loop_count > 0
+    timeout-minutes: 3
     steps:
+      - name: Jalankan hello world (timeout aman)
+        run: |
+          timeout 240 bash -c 'echo "hello world" & sleep 120'
+          EXIT=$?
+          if [ $EXIT -eq 124 ]; then
+            echo "⏰ Timeout 4 menit, dianggap sukses"
+            exit 0
+          else
+            exit $EXIT
+          fi
+
+  # =============================================
+  # 🔁 Lanjutkan ke LSCPU Phase jika masih dalam jam & siklus > 0
+  # =============================================
+  trigger-lscpu:
+    needs: [check-schedule, run-hello]
+    if: |
+      always() &&
+      needs.check-schedule.outputs.should_run == 'true' &&
+      github.event.inputs.loop_count > 0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cek ulang waktu sebelum melanjutkan loop
+        id: recheck
+        run: |
+          HOUR_UTC=$(date -u +%H)
+          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
+            echo "✅ Masih dalam jam kerja, lanjutkan loop"
+            echo "continue=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏰ Di luar jam kerja, loop dihentikan"
+            echo "continue=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Panggil LSCPU Phase
+        if: steps.recheck.outputs.continue == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
