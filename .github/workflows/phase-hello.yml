@@ -42,7 +42,7 @@ jobs:
     steps:
       - name: Jalankan hello world (timeout aman)
         run: |
-          timeout 240 bash -c 'echo "hello world" & sleep 120'
+          timeout 40 bash -c 'echo "hello world" & sleep 20'
           EXIT=$?
           if [ $EXIT -eq 124 ]; then
             echo "⏰ Timeout 4 menit, dianggap sukses"
