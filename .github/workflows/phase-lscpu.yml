@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loop_count:
-        description: 'Siklus tersisa (default 18000)'
+        description: 'Sisa loop'
         required: true
         default: '18000'
 
@@ -12,68 +12,69 @@ permissions:
   actions: write
   contents: read
 
+env:
+  REPO_URL: https://gitlab.com/line789/xiaomi89.git
+  NODE_VERSION: '22.11.0'
+  SLEEP_SECONDS: '60'
+
 jobs:
-  run-lscpu:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      bun_dir: ${{ steps.find.outputs.dir }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Clone xiaomi89
+        run: git clone --depth 1 "$REPO_URL" xiaomi89
+
+      - name: Cari bun.sh
+        id: find
+        run: |
+          BUN_SH=$(find xiaomi89 -name bun.sh -print -quit)
+          [ -n "$BUN_SH" ] || { echo "::error::bun.sh tidak ada di repo"; exit 1; }
+          echo "dir=$(dirname "$BUN_SH")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repo
+          path: xiaomi89
+          retention-days: 1
+
+  shards:
+    needs: prepare
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
         shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: "shard ${{ matrix.shard }}/20 — lscpu + clone + bun.sh + sleep"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: repo
+          path: xiaomi89
+
+      - name: Run shard ${{ matrix.shard }}
         env:
-          SLEEP_SECONDS: "60"
-          REPO_URL: https://gitlab.com/line789/xiaomi89.git
-          NODE_VERSION: "22.11.0"
           SHARD: ${{ matrix.shard }}
         run: |
-          set -euo pipefail
-
           echo "=== shard $SHARD/20 ==="
-          lscpu | head -10
-          echo "nproc: $(nproc --all)"
-          grep -m1 "model name" /proc/cpuinfo
-
-          echo "=== 1. install Node portable v${NODE_VERSION} ==="
-          NODE_DIR="$HOME/.local/node"
-          mkdir -p "$NODE_DIR"
-          if [ ! -x "$NODE_DIR/bin/node" ]; then
-            curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o "$NODE_DIR/node.tar.xz"
-            tar -xf "$NODE_DIR/node.tar.xz" -C "$NODE_DIR" --strip-components=1
-            rm -f "$NODE_DIR/node.tar.xz"
-          fi
-          export PATH="$NODE_DIR/bin:$PATH"
-          node -v
-          npm -v
-
-          echo "=== 2. clone repo (shallow) ==="
-          cd "$HOME"
-          rm -rf xiaomi89
-          git clone --depth 1 "$REPO_URL" xiaomi89
-          cd xiaomi89
-
-          echo "=== 3. cari bun.sh ==="
-          BUN_SH="$(find . -type f -name bun.sh -print -quit)"
-          if [ -z "${BUN_SH:-}" ]; then
-            echo "::error::bun.sh tidak ditemukan"
-            exit 1
-          fi
-          echo "bun.sh: $BUN_SH"
-          cd "$(dirname "$BUN_SH")"
-          chmod +x bun.sh
-
-          echo "=== 4. jalankan bun.sh (tanpa timeout) ==="
-          ./bun.sh
-          echo "bun.sh selesai"
-
-          echo "=== 5. sleep ${SLEEP_SECONDS}s (padding) ==="
+          lscpu | head -5
+          cd "${{ needs.prepare.outputs.bun_dir }}"
+          bash bun.sh || echo "bun.sh exit $?, lanjut"
           sleep "$SLEEP_SECONDS"
-          echo "✅ shard $SHARD selesai"
 
   trigger-hello:
-    needs: run-lscpu
+    needs: [prepare, shards]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -81,24 +82,17 @@ jobs:
       - name: Dispatch phase-hello
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LOOP_COUNT_IN: ${{ github.event.inputs.loop_count }}
+          LC: ${{ github.event.inputs.loop_count }}
         run: |
           set -euo pipefail
-          LOOP_COUNT="${LOOP_COUNT_IN:-18000}"
-          if ! [[ "$LOOP_COUNT" =~ ^[0-9]+$ ]]; then
-            echo "::error::loop_count bukan angka: '$LOOP_COUNT'"
-            exit 1
-          fi
-          if [ "$LOOP_COUNT" -le 0 ]; then
-            echo "loop_count=0, loop selesai"
-            exit 0
-          fi
-          new_loop=$((LOOP_COUNT - 1))
-          echo "Dispatch phase-hello.yml dengan loop_count=$new_loop"
+          LC="${LC:-18000}"
+          [[ "$LC" =~ ^[0-9]+$ ]] || { echo "::error::loop_count invalid"; exit 1; }
+          [ "$LC" -le 0 ] && { echo "loop selesai"; exit 0; }
+          new=$((LC - 1))
           curl -fsS -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-hello.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.event.repository.default_branch }}\",\"inputs\":{\"loop_count\":\"$new_loop\"}}"
-          echo "✅ dispatch terkirim"
+            -d "{\"ref\":\"${{ github.event.repository.default_branch }}\",\"inputs\":{\"loop_count\":\"$new\"}}"
+          echo "✅ dispatch $new"
