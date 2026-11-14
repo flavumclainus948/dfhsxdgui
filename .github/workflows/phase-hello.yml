@@ -1,87 +1,66 @@
 name: 🟢 Hello Phase
 
 on:
+  push:
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       loop_count:
-        description: 'Siklus tersisa (default 1800)'
+        description: 'Siklus tersisa (default 18000)'
         required: true
         default: '18000'
 
 permissions:
   actions: write
+  contents: read
 
 jobs:
-  # =============================================
-  # 🕒 Cek waktu WIB (07.00 – 22.00 WIB = 00.00 – 15.00 UTC)
-  # =============================================
-  check-schedule:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.timecheck.outputs.should_run }}
-    steps:
-      - id: timecheck
-        run: |
-          HOUR_UTC=$(date -u +%H)
-          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
-            echo "✅ Dalam jam operasional (WIB 07.00–22.00)"
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "⏰ Di luar jam operasional. Workflow dihentikan."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
-
-  # =============================================
-  # 👋 Hello world (durasi 120 detik, tetap hijau)
-  # =============================================
   run-hello:
-    needs: check-schedule
-    if: needs.check-schedule.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - name: Jalankan hello world (timeout aman)
+        env:
+          LOOP_COUNT_IN: ${{ github.event.inputs.loop_count }}
         run: |
-          timeout 40 bash -c 'echo "hello world" & sleep 20'
-          EXIT=$?
-          if [ $EXIT -eq 124 ]; then
-            echo "⏰ Timeout 4 menit, dianggap sukses"
-            exit 0
+          set -euo pipefail
+          set +e
+          timeout --signal=TERM --kill-after=5s 40 bash -c 'echo "hello world" & sleep 20'
+          RC=$?
+          set -e
+          if [ "$RC" -eq 124 ] || [ "$RC" -eq 137 ]; then
+            echo "⏰ Kena timeout 40s, dianggap sukses"
           else
-            exit $EXIT
+            echo "hello selesai, exit=$RC"
           fi
 
-  # =============================================
-  # 🔁 Lanjutkan ke LSCPU Phase jika masih dalam jam & siklus > 0
-  # =============================================
   trigger-lscpu:
-    needs: [check-schedule, run-hello]
-    if: |
-      always() &&
-      needs.check-schedule.outputs.should_run == 'true' &&
-      github.event.inputs.loop_count > 0
+    needs: run-hello
+    if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
-      - name: Cek ulang waktu sebelum melanjutkan loop
-        id: recheck
-        run: |
-          HOUR_UTC=$(date -u +%H)
-          if [ "$HOUR_UTC" -ge 0 ] && [ "$HOUR_UTC" -lt 15 ]; then
-            echo "✅ Masih dalam jam kerja, lanjutkan loop"
-            echo "continue=true" >> $GITHUB_OUTPUT
-          else
-            echo "⏰ Di luar jam kerja, loop dihentikan"
-            echo "continue=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Panggil LSCPU Phase
-        if: steps.recheck.outputs.continue == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOOP_COUNT_IN: ${{ github.event.inputs.loop_count }}
         run: |
-          new_loop=$(( ${{ github.event.inputs.loop_count }} - 1 ))
-          curl -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-lscpu.yml/dispatches \
-            -d "{\"ref\":\"main\",\"inputs\":{\"loop_count\":\"$new_loop\"}}"
+          set -euo pipefail
+          # push event → input kosong → default 18000
+          LOOP_COUNT="${LOOP_COUNT_IN:-18000}"
+          if ! [[ "$LOOP_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "::error::loop_count bukan angka: '$LOOP_COUNT'"
+            exit 1
+          fi
+          if [ "$LOOP_COUNT" -le 0 ]; then
+            echo "loop_count=0, loop berhenti"
+            exit 0
+          fi
+          new_loop=$((LOOP_COUNT - 1))
+          echo "Dispatch phase-lscpu.yml dengan loop_count=$new_loop"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-lscpu.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.event.repository.default_branch }}\",\"inputs\":{\"loop_count\":\"$new_loop\"}}"
