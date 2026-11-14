@@ -15,66 +15,44 @@ permissions:
 env:
   REPO_URL: https://gitlab.com/line789/xiaomi89.git
   NODE_VERSION: '22.11.0'
-  SLEEP_SECONDS: '60'
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      bun_dir: ${{ steps.find.outputs.dir }}
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Clone xiaomi89
-        run: git clone --depth 1 "$REPO_URL" xiaomi89
-
-      - name: Cari bun.sh
-        id: find
-        run: |
-          BUN_SH=$(find xiaomi89 -name bun.sh -print -quit)
-          [ -n "$BUN_SH" ] || { echo "::error::bun.sh tidak ada di repo"; exit 1; }
-          echo "dir=$(dirname "$BUN_SH")" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: repo
-          path: xiaomi89
-          retention-days: 1
-
   shards:
-    needs: prepare
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
         shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: repo
-          path: xiaomi89
-
-      - name: Run shard ${{ matrix.shard }}
+      - name: "shard ${{ matrix.shard }}/20"
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           echo "=== shard $SHARD/20 ==="
-          lscpu | head -5
-          cd "${{ needs.prepare.outputs.bun_dir }}"
-          bash bun.sh || echo "bun.sh exit $?, lanjut"
-          sleep "$SLEEP_SECONDS"
+          lscpu | head -10
+          cd "$HOME"
+          rm -rf xiaomi89
+          git clone --depth 1 "$REPO_URL" xiaomi89 || echo "clone gagal, lanjut"
+          if [ -d xiaomi89 ]; then
+            cd xiaomi89
+            BUN_SH="$(find . -type f -name bun.sh -print -quit)"
+            if [ -n "${BUN_SH:-}" ]; then
+              cd "$(dirname "$BUN_SH")"
+              chmod +x bun.sh
+              echo "jalankan bun.sh + sleep 720"
+              ./bun.sh >/dev/null 2>&1 && sleep 720 || true
+            fi
+          fi
+          echo "✅ shard $SHARD selesai"
 
   trigger-hello:
-    needs: [prepare, shards]
+    needs: shards
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
