@@ -68,7 +68,7 @@ jobs:
   # =============================================
   line:
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       max-parallel: 20
@@ -87,7 +87,7 @@ jobs:
   # =============================================
   lucas:
     needs: [generate, line]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
       max-parallel: 20
@@ -106,7 +106,7 @@ jobs:
   # =============================================
   popay:
     needs: [generate, line]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 115
     strategy:
       max-parallel: 20
@@ -125,7 +125,7 @@ jobs:
   # =============================================
   dandi:
     needs: [generate, lucas]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 168
     strategy:
       max-parallel: 20
@@ -144,7 +144,7 @@ jobs:
   # =============================================
   alam:
     needs: [generate, popay]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 170
     strategy:
       max-parallel: 20
@@ -165,7 +165,7 @@ jobs:
     # ⚠️ FIX: sebelumnya `needs: shards` → job tidak ada → workflow invalid
     needs: [generate, line, lucas, popay, dandi, alam]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Dispatch phase-hello
