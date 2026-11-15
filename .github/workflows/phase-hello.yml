@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   run-hello:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
       - name: Hello world
@@ -33,7 +33,7 @@ jobs:
   trigger-lscpu:
     needs: run-hello
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Dispatch phase-lscpu
