@@ -6,7 +6,7 @@ on:
       loop_count:
         description: 'Sisa loop'
         required: true
-        default: '18000'
+        default: '999'
 
 permissions:
   actions: write
@@ -38,7 +38,7 @@ jobs:
           LC: ${{ github.event.inputs.loop_count }}
         run: |
           set -euo pipefail
-          LC="${LC:-18000}"
+          LC="${LC:-999}"
           [[ "$LC" =~ ^[0-9]+$ ]] || { echo "::error::loop_count invalid"; exit 1; }
           [ "$LC" -le 0 ] && { echo "loop selesai"; exit 0; }
           new=$((LC - 1))
