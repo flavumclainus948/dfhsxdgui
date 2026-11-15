@@ -8,6 +8,10 @@ on:
         required: true
         default: '999'
 
+# ⬇️ FIX TERM
+env:
+  TERM: xterm-256color
+
 permissions:
   actions: write
   contents: read
@@ -39,19 +43,12 @@ jobs:
         run: |
           set -euo pipefail
           LC="${LC:-999}"
-
           if ! [[ "$LC" =~ ^[0-9]+$ ]]; then
-            echo "::error::loop_count invalid"
-            exit 1
+            echo "::error::loop_count invalid"; exit 1
           fi
-
-          # ⚠️ FIX: pakai if — bukan `&&` (set -e akan kill script
-          # kalau test-nya false, jadi curl di bawahnya tidak pernah jalan)
           if [ "$LC" -le 0 ]; then
-            echo "loop selesai"
-            exit 0
+            echo "loop selesai"; exit 0
           fi
-
           new=$((LC - 1))
           curl -fsS -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
