@@ -51,7 +51,7 @@ jobs:
               'line_go': 9,  'line_flag': 26,
               'lucas_go': 9, 'lucas_flag': 26,
               'popay_go': 9, 'popay_flag': 26,
-              'dandi_go': 9, 'dandi_flag': 15,
+              'dandi_go': 9, 'dandi_flag': 25,
               'alam_go': 9,  'alam_flag': 19
           }
 
